@@ -26,6 +26,8 @@ class GameBoard():
     def __init__(self):
         self.gameBoard = np.zeros((8, 8), dtype=object)
         self.pieces = set([])
+        self.kings = {'white': None, 'black': None}
+        self.check = False
 
     def show(self):
         gameDisplay.fill(light)
@@ -38,31 +40,30 @@ class GameBoard():
         for piece in self.pieces:
             piece.show()
 
-    def move(self, target, dest):
-
+    def move(self, piece, dest):
+        assert piece != 0
+        target = piece.square
         if target == dest:
-            return
-        piece = self.gameBoard[target]
-        if piece == 0:
-            return
+            return False
 
         dest_piece = self.gameBoard[dest]
-        if dest_piece != 0:
-            if piece.colour == dest_piece.colour:
-                return
 
-        allowed = piece.move(dest, self.gameBoard)
+        allowed = piece.check_legal(dest, self.gameBoard)
         if not allowed:
-            return
+            return False
 
         if dest_piece != 0:
             self.pieces.remove(dest_piece)
         self.gameBoard[target] = 0
         self.gameBoard[dest] = piece
+        piece.set_square(dest, gameBoard)
+        return True
 
     def set_piece(self, piece, square):
-        piece.set_square(square)
+        piece.set_square(square, gameBoard)
         self.gameBoard[square] = piece
+        if piece.piece == 'K':
+            self.kings[piece.colour] = piece
         self.pieces.add(piece)
 
 
@@ -77,10 +78,7 @@ class Piece():
         file, rank = self.square
         self.xy = (60*file, 420-60*rank)
 
-    def move(self, square):
-        self.set_square(square)
-
-    def set_square(self, square):
+    def set_square(self, square, board):
         self.square = square
         self.update_xy()
 
@@ -101,15 +99,18 @@ class King(Piece):
         image_path = f'assets/Chess_k{colour_char}t60.png'
         self.image = pygame.image.load(image_path)
 
-    def move(self, square, board):
+    def check_legal(self, dest_square, board):
         file, rank = self.square
-        dest_file, dest_rank = square
+        dest_file, dest_rank = dest_square
+        dest_piece = board[dest_square]
+        dest_colour = dest_piece.colour if dest_piece else 0
+
         file_distance = abs(dest_file-file)
         rank_distance = abs(dest_rank-rank)
-        if file_distance > 1 or rank_distance > 1:
+        if file_distance > 1 or rank_distance > 1 or\
+                self.square == dest_square or self.colour == dest_colour:
             return False
         else:
-            self.set_square(square)
             return True
 
 
@@ -125,13 +126,16 @@ class Queen(Piece):
         image_path = f'assets/Chess_q{colour_char}t60.png'
         self.image = pygame.image.load(image_path)
 
-    def move(self, square, board):
+    def check_legal(self, dest_square, board):
         file, rank = self.square
-        dest_file, dest_rank = square
+        dest_file, dest_rank = dest_square
+        dest_piece = board[dest_square]
+        dest_colour = dest_piece.colour if dest_piece else 0
 
         file_distance = abs(dest_file-file)
         rank_distance = abs(dest_rank-rank)
-        if not(file_distance == 0 or rank_distance == 0 or file_distance == rank_distance):
+        if not(file_distance == 0 or rank_distance == 0 or file_distance == rank_distance) or\
+                self.square == dest_square or self.colour == dest_colour:
             return False
 
         file_sign = np.sign(dest_file-file)
@@ -146,7 +150,6 @@ class Queen(Piece):
             if board[tuple([file, rank])] != 0:
                 return False
 
-        self.set_square(square)
         return True
 
 
@@ -162,13 +165,16 @@ class Bishop(Piece):
         image_path = f'assets/Chess_b{colour_char}t60.png'
         self.image = pygame.image.load(image_path)
 
-    def move(self, square, board):
+    def check_legal(self, dest_square, board):
         file, rank = self.square
-        dest_file, dest_rank = square
+        dest_file, dest_rank = dest_square
+        dest_piece = board[dest_square]
+        dest_colour = dest_piece.colour if dest_piece else 0
 
         file_distance = abs(dest_file-file)
         rank_distance = abs(dest_rank-rank)
-        if not(file_distance == rank_distance):
+        if not(file_distance == rank_distance) or\
+                self.square == dest_square or self.colour == dest_colour:
             return False
 
         file_sign = np.sign(dest_file-file)
@@ -183,7 +189,6 @@ class Bishop(Piece):
             if board[tuple([file, rank])] != 0:
                 return False
 
-        self.set_square(square)
         return True
 
 
@@ -199,13 +204,16 @@ class Rook(Piece):
         image_path = f'assets/Chess_r{colour_char}t60.png'
         self.image = pygame.image.load(image_path)
 
-    def move(self, square, board):
+    def check_legal(self, dest_square, board):
         file, rank = self.square
-        dest_file, dest_rank = square
+        dest_file, dest_rank = dest_square
+        dest_piece = board[dest_square]
+        dest_colour = dest_piece.colour if dest_piece else 0
 
         file_distance = abs(dest_file-file)
         rank_distance = abs(dest_rank-rank)
-        if not(file_distance == 0 or rank_distance == 0):
+        if not(file_distance == 0 or rank_distance == 0) or\
+                self.square == dest_square or self.colour == dest_colour:
             return False
 
         file_sign = np.sign(dest_file-file)
@@ -220,7 +228,6 @@ class Rook(Piece):
             if board[tuple([file, rank])] != 0:
                 return False
 
-        self.set_square(square)
         return True
 
 
@@ -236,16 +243,18 @@ class Knight(Piece):
         image_path = f'assets/Chess_n{colour_char}t60.png'
         self.image = pygame.image.load(image_path)
 
-    def move(self, square, board):
+    def check_legal(self, dest_square, board):
         file, rank = self.square
-        dest_file, dest_rank = square
+        dest_file, dest_rank = dest_square
+        dest_piece = board[dest_square]
+        dest_colour = dest_piece.colour if dest_piece else 0
 
         file_distance = abs(dest_file-file)
         rank_distance = abs(dest_rank-rank)
-        if file_distance == 0 or rank_distance == 0 or file_distance+rank_distance != 3:
+        if file_distance == 0 or rank_distance == 0 or file_distance+rank_distance != 3 or\
+                self.square == dest_square or self.colour == dest_colour:
             return False
 
-        self.set_square(square)
         return True
 
 
@@ -261,28 +270,48 @@ class Pawn(Piece):
         image_path = f'assets/Chess_p{colour_char}t60.png'
         self.image = pygame.image.load(image_path)
 
-    def move(self, square, board):
+    def set_square(self, square, board):
+        rank = square[1]
+        if rank == 7 or rank == 0:
+            board.pieces.remove(self)
+            board.set_piece(Queen(self.colour), square)
+        else:
+            self.square = square
+            self.update_xy()
+
+    def check_legal(self, dest_square, board):
         file, rank = self.square
-        dest_file, dest_rank = square
+        dest_file, dest_rank = dest_square
+        dest_piece = board[dest_square]
+        dest_colour = dest_piece.colour if dest_piece else 0
 
         file_distance = abs(dest_file-file)
         rank_advance = dest_rank-rank
 
-        if ((rank == 1 and rank_advance == 2 and self.colour=='white') or\
-           (rank == 6 and rank_advance == -2 and self.colour=='black')) and file_distance == 0:
-            self.set_square(square)
-            return True
-
-        if (rank_advance != 1 and self.colour=='white') or (rank_advance != -1 and self.colour=='black') or file_distance > 1 :
+        if self.square == dest_square or self.colour == dest_colour:
             return False
 
-        if file_distance == 0 and board[square] != 0:
+        if ((rank == 1 and rank_advance == 2 and self.colour == 'white') or
+            (rank == 6 and rank_advance == -2 and self.colour == 'black')) and\
+                file_distance == 0:
+            blockade_square = (file, rank+rank_advance//2)
+            blockade_piece = board[blockade_square]
+            if blockade_piece == 0:
+                return True
+            else:
+                return False
+
+        if (rank_advance != 1 and self.colour == 'white') or (rank_advance != -1 and self.colour == 'black') or\
+                file_distance > 1:
+
             return False
 
-        if file_distance == 1 and board[square] == 0:
+        if file_distance == 0 and board[dest_square] != 0:
             return False
 
-        self.set_square(square)
+        if file_distance == 1 and board[dest_square] == 0:
+            return False
+
         return True
 
 
@@ -329,6 +358,8 @@ initalise_pieces()
 mouse_target = None
 mouse_piece = None
 
+turn = 'white'
+
 while not crashed:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -347,7 +378,13 @@ while not crashed:
             x, y = pygame.mouse.get_pos()
             x, y = max(1, min(479, x)), max(1, min(479, y))
             x, y = x//60, (480-y)//60
-            gameBoard.move(mouse_target, (x, y))
+            if mouse_piece != 0:
+                if mouse_piece.colour == turn:
+                    success = gameBoard.move(mouse_piece, (x, y))
+                    if success == True:
+                        turn = 'black' if turn == 'white' else 'white'
+
+            # Reset mouse variables
             mouse_target = None
             if mouse_piece != 0:
                 mouse_piece.on_mouse = False
